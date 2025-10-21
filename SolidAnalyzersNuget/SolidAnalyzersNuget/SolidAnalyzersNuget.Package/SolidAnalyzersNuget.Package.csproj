@@ -9,21 +9,22 @@
 
   <PropertyGroup>
     <PackageId>SolidAnalyzers</PackageId>
-    <PackageVersion>2.0.0.0</PackageVersion>
+    <PackageVersion>2.0.0.1</PackageVersion>
     <Authors>Aniketh Badakala</Authors>
     <Company>Team Rocket</Company>
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>   
-    <PackageLicenseUrl>http://LICENSE_URL_HERE_OR_DELETE_THIS_LINE</PackageLicenseUrl>
-    <PackageProjectUrl>http://PROJECT_URL_HERE_OR_DELETE_THIS_LINE</PackageProjectUrl>
+    <PackageLicenseUrl>https://learn.microsoft.com/en-us/visualstudio/code-quality/roslyn-analyzers-overview?view=vs-2022</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/AnikethBadakala/SolidAnalyzersNuget</PackageProjectUrl>
     <PackageIconUrl>http://ICON_URL_HERE_OR_DELETE_THIS_LINE</PackageIconUrl>
-    <RepositoryUrl>http://REPOSITORY_URL_HERE_OR_DELETE_THIS_LINE</RepositoryUrl>  
+    <RepositoryUrl>https://github.com/AnikethBadakala/SolidAnalyzersNuget</RepositoryUrl>  
     <Description>SolidAnalyzersNuget</Description>
     <PackageReleaseNotes>Summary of changes made in this release of the package.</PackageReleaseNotes>
     <Copyright>Copyright</Copyright>
-    <PackageTags>SOLIDPrinciplesLSPAnalyzer, analyzers</PackageTags>
+    <PackageTags>SOLID_Principles_LSPAnalyzer, code analyzers</PackageTags>
     <DevelopmentDependency>true</DevelopmentDependency>
     <NoPackageAnalysis>true</NoPackageAnalysis>   
+      <PackageIcon>nuget.png</PackageIcon>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_AddAnalyzersToOutput</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
@@ -35,6 +36,9 @@
   <ItemGroup>
     <None Update="tools\*.ps1" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="" />
   </ItemGroup>
+  <ItemGroup>  
+  <None Include="nuget.png" Pack="true" PackagePath="" />
+</ItemGroup>
 
   <Target Name="_AddAnalyzersToOutput">
     <ItemGroup>
