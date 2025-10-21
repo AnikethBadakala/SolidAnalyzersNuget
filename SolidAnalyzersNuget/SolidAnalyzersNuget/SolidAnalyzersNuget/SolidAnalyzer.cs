@@ -26,7 +26,7 @@ namespace SolidAnalyzersNuget
            "Method '{0}' in derived type '{1}' throws an exception '{2}' not covered by base method '{3}' contract.",
            "SOLID Principles",
            DiagnosticSeverity.Warning,
-           isEnabledByDefault: true);             
+           isEnabledByDefault: true);
 
         //Every analyzer must declare which diagnostic rules it supports.
         //Roslyn uses this to:
@@ -152,7 +152,15 @@ namespace SolidAnalyzersNuget
                         //A specific instance of a diagnostic — a real warning you want to report right now.
                         //throwStmt.GetLocation() = tells VS where in the code the problem is
                         var diag = Diagnostic.Create(Rule, throwStmt.GetLocation(),
-                            methodSymbol.Name, thrownType.Name);
+     // Argument {0} - Derived Method Name
+     methodSymbol.Name,
+     // Argument {1} - Derived Type Name
+     methodSymbol.ContainingType.Name,
+     // Argument {2} - Thrown Exception Name
+     thrownType.Name,
+     // Argument {3} - Base Method Name or Base Type Name
+     baseMethod.Name // or baseMethod.ContainingType.Name
+ );
 
                         //This actually reports the warning to Visual Studio (or compiler).
                         context.ReportDiagnostic(diag);

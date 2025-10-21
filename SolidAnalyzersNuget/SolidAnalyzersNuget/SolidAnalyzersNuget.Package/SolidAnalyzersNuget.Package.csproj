@@ -9,7 +9,7 @@
 
   <PropertyGroup>
     <PackageId>SolidAnalyzers</PackageId>
-    <PackageVersion>2.0.0.1</PackageVersion>
+    <PackageVersion>3.0.0</PackageVersion>
     <Authors>Aniketh Badakala</Authors>
     <Company>Team Rocket</Company>
     <RepositoryType>git</RepositoryType>
