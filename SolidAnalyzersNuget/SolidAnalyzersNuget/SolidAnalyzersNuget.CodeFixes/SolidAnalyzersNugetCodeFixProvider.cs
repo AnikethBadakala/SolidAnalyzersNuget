@@ -3,17 +3,13 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Rename;
-using Microsoft.CodeAnalysis.Text;
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Composition;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SolidAnalyzersNuget
+namespace SolidAnalyzersNuget.CodeFixes
 {
     [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(SolidAnalyzersNugetCodeFixProvider)), Shared]
     public class SolidAnalyzersNugetCodeFixProvider : CodeFixProvider
@@ -26,7 +22,7 @@ namespace SolidAnalyzersNuget
         public sealed override ImmutableArray<string> FixableDiagnosticIds
         {
             // NOTE: Assumes SolidAnalyzer is visible here. If not, use the full path or alias.
-            get { return ImmutableArray.Create(SolidAnalyzersNuget.SolidAnalyzer.lspDiagnosticId); }
+            get { return ImmutableArray.Create(SolidAnalyzersNuget.SolidAnalyzer.lspDiagnosticId, SolidAnalyzersNuget.SolidAnalyzer.srpDiagnosticId); }
         }
 
         public sealed override FixAllProvider GetFixAllProvider()
@@ -39,6 +35,37 @@ namespace SolidAnalyzersNuget
         {
             var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
             var diagnostic = context.Diagnostics.First();
+
+            if (diagnostic.Id == SolidAnalyzersNuget.SolidAnalyzer.srpDiagnosticId)
+            {
+                var typeDeclaration = root.FindToken(diagnostic.Location.SourceSpan.Start).Parent.AncestorsAndSelf()
+                    .OfType<TypeDeclarationSyntax>()
+                    .FirstOrDefault();
+
+                if (typeDeclaration != null)
+                {
+                    // Suppression (already present)
+                    context.RegisterCodeFix(
+                        CodeAction.Create(
+                            title: "Suppress SRP001 (Refactoring Required)",
+                            createChangedSolution: c => Task.FromResult(context.Document.Project.Solution),
+                            equivalenceKey: "SuppressSRP001"
+                        ),
+                        diagnostic
+                    );
+
+                    // Real code fix: Extract calculation methods to a new partial class
+                    context.RegisterCodeFix(
+                        CodeAction.Create(
+                            title: "Extract calculation methods to partial class",
+                            createChangedDocument: c => ExtractCalculationMethodsAsync(context.Document, typeDeclaration, c),
+                            equivalenceKey: "ExtractCalculationMethods"
+                        ),
+                        diagnostic
+                    );
+                }
+                return;
+            }
 
             // *** IMPORTANT FIX: Use FindNode for reliable location of the entire statement ***
             var diagnosticSpan = diagnostic.Location.SourceSpan;
@@ -97,6 +124,38 @@ namespace SolidAnalyzersNuget
             var newRoot = oldRoot.ReplaceNode(throwStatement, newThrowStatement);
 
             return Task.FromResult(document.WithSyntaxRoot(newRoot));
+        }
+
+        private async Task<Document> ExtractCalculationMethodsAsync(
+            Document document,
+            TypeDeclarationSyntax typeDeclaration,
+            CancellationToken cancellationToken)
+        {
+            var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+
+            // Find calculation methods
+            var calculationMethods = typeDeclaration.Members
+                .OfType<MethodDeclarationSyntax>()
+                .Where(m => m.Identifier.Text.Contains("Calculate"))
+                .ToList();
+
+            if (!calculationMethods.Any())
+                return document;
+
+            // Remove calculation methods from original class
+            var newTypeDecl = typeDeclaration.RemoveNodes(calculationMethods, SyntaxRemoveOptions.KeepNoTrivia);
+
+            // Create new partial class with calculation methods
+            var partialClass = SyntaxFactory.ClassDeclaration(typeDeclaration.Identifier)
+                .WithModifiers(typeDeclaration.Modifiers.Add(SyntaxFactory.Token(SyntaxKind.PartialKeyword)))
+                .WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>(calculationMethods))
+                .WithLeadingTrivia(typeDeclaration.GetLeadingTrivia())
+                .WithTrailingTrivia(typeDeclaration.GetTrailingTrivia());
+
+            // Insert new partial class after the original
+            var newRoot = root.ReplaceNode(typeDeclaration, new[] { newTypeDecl, partialClass });
+
+            return document.WithSyntaxRoot(newRoot);
         }
     }
 }

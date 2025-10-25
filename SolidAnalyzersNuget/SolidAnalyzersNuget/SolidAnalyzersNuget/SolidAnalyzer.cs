@@ -15,18 +15,30 @@ namespace SolidAnalyzersNuget
     {
         //This is the unique ID of your rule
         public const string lspDiagnosticId = "LSP001";
+        //
+        public const string srpDiagnosticId = "SRP001";
+        private const int ComplexityThreshold = 15;
 
         //the information of rule
         //desc of diagnosis
         //A DiagnosticDescriptor describes a kind of issue (a rule) that your analyzer can report.
         //Think of it as metadata about your warning/error.
-        private static readonly DiagnosticDescriptor Rule = new DiagnosticDescriptor(
+        private static readonly DiagnosticDescriptor lspRule1 = new DiagnosticDescriptor(
            lspDiagnosticId,
            "LSP Violation: Derived method throws exception not in base method's contract.",
            "Method '{0}' in derived type '{1}' throws an exception '{2}' not covered by base method '{3}' contract.",
            "SOLID Principles",
            DiagnosticSeverity.Warning,
            isEnabledByDefault: true);
+
+        private static readonly DiagnosticDescriptor srpRule1 = new DiagnosticDescriptor(
+         srpDiagnosticId,
+         "SRP Violation: Class violates SRP (Excessive Complexity)",
+         "Type '{0}' has {1} members, exceeding the complexity threshold of {2}.",
+         "SOLID Principles",
+         DiagnosticSeverity.Warning,
+         isEnabledByDefault: true,
+         "A class should have only one reason to change. High member count suggests multiple responsibilities.");
 
         //Every analyzer must declare which diagnostic rules it supports.
         //Roslyn uses this to:
@@ -43,7 +55,8 @@ namespace SolidAnalyzersNuget
 
         //these are the diagnostics (warnings/errors) my analyzer might report.
         //SupportedDiagnostics says this analyzer can produce warnings with ID LSP001 and category SOLID Principles.”
-        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get { return ImmutableArray.Create(Rule); } }//to tell the compiler what issue to expect
+        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get { return ImmutableArray.Create(lspRule1,srpRule1); } }//to tell the compiler what issue to expect
+      
 
         //when the code control reaches the analyzers and when the compiler comes to our analyzer, it tells the compiler what code it should check
         //when and how your analyzer should run those rules. at method find
@@ -58,6 +71,8 @@ namespace SolidAnalyzersNuget
             //Does this method override another one?” or “What’s its return type?
             //to find what to analyze,semantic understanding (e.g., base/derived method relationship)
             context.RegisterSymbolAction(AnalyzeMethodSymbol, SymbolKind.Method);
+            //
+            context.RegisterSymbolAction(AnalyzeTypeSymbol, SymbolKind.NamedType);
 
             //Tell Roslyn to call AnalyzeMethodBody every time it finds a method in the source code           
             //to inspect the code Does this method contain a throw statement?
@@ -151,7 +166,7 @@ namespace SolidAnalyzersNuget
                         //creates a warning message for the analyzer
                         //A specific instance of a diagnostic — a real warning you want to report right now.
                         //throwStmt.GetLocation() = tells VS where in the code the problem is
-                        var diag = Diagnostic.Create(Rule, throwStmt.GetLocation(),
+                        var diag = Diagnostic.Create(lspRule1, throwStmt.GetLocation(),
      // Argument {0} - Derived Method Name
      methodSymbol.Name,
      // Argument {1} - Derived Type Name
@@ -166,6 +181,45 @@ namespace SolidAnalyzersNuget
                         context.ReportDiagnostic(diag);
                     }
                 }
+            }
+        }
+
+        //
+        private static void AnalyzeTypeSymbol(SymbolAnalysisContext context)
+        {
+            var namedTypeSymbol=(INamedTypeSymbol)context.Symbol;
+
+            // Only analyze concrete classes
+            if (namedTypeSymbol.IsAbstract || namedTypeSymbol.IsStatic|| namedTypeSymbol.TypeKind!=TypeKind.Class)
+                return;
+            // Filter out compiler-generated types (e.g., anonymous types)
+            if (namedTypeSymbol.IsImplicitlyDeclared)
+                return;
+
+            var memberCount=namedTypeSymbol.GetMembers()
+                .Count(x=>!x.IsImplicitlyDeclared && x.Kind!=SymbolKind.NamedType && x.Kind!= SymbolKind.Method && ((IMethodSymbol)x).MethodKind != MethodKind.Constructor);
+
+            // Count methods and constructors separately
+            var methodCount = namedTypeSymbol.GetMembers().OfType<IMethodSymbol>()
+                .Count(method =>
+                    !method.IsImplicitlyDeclared &&
+                    method.MethodKind != MethodKind.Destructor); // Exclude destructors
+
+            // Total members is the count of fields/properties + count of methods/constructors
+            var totalMemberCount = memberCount + methodCount;
+
+            if (totalMemberCount > ComplexityThreshold)
+            {
+                // Report the diagnostic
+                var diagnostic = Diagnostic.Create(
+                    srpRule1,
+                    namedTypeSymbol.Locations.First(),
+                    namedTypeSymbol.Name, // {0} = Type Name
+                    totalMemberCount,     // {1} = Member Count
+                    ComplexityThreshold   // {2} = Threshold
+                );
+
+                context.ReportDiagnostic(diagnostic);
             }
         }
 
