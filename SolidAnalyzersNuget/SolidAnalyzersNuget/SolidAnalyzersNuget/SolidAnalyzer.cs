@@ -215,7 +215,7 @@ namespace SolidAnalyzersNuget
                     return true;
                 });
 
-            const int ComplexityThreshold = 15; // Ensure this matches the constant at the top of the file
+           // Ensure this matches the constant at the top of the file
 
             // The rule fires if the count is STRICTLY GREATER THAN the threshold (16 or more)
             if (totalMemberCount > ComplexityThreshold)

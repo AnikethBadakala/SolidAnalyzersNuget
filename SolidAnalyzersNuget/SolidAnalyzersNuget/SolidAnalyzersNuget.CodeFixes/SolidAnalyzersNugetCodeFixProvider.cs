@@ -35,31 +35,22 @@ namespace SolidAnalyzersNuget.CodeFixes
         {
             var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
             var diagnostic = context.Diagnostics.First();
-
             if (diagnostic.Id == SolidAnalyzersNuget.SolidAnalyzer.srpDiagnosticId)
             {
-                var typeDeclaration = root.FindToken(diagnostic.Location.SourceSpan.Start).Parent.AncestorsAndSelf()
-                    .OfType<TypeDeclarationSyntax>()
-                    .FirstOrDefault();
+                // Find the declaration node (Parent class in this case)
+                var typeDeclaration = root.FindNode(diagnostic.Location.SourceSpan).AncestorsAndSelf()
+                                             .OfType<ClassDeclarationSyntax>()
+                                             .FirstOrDefault();
 
                 if (typeDeclaration != null)
                 {
-                    // Suppression (already present)
                     context.RegisterCodeFix(
                         CodeAction.Create(
-                            title: "Suppress SRP001 (Refactoring Required)",
-                            createChangedSolution: c => Task.FromResult(context.Document.Project.Solution),
-                            equivalenceKey: "SuppressSRP001"
-                        ),
-                        diagnostic
-                    );
-
-                    // Real code fix: Extract calculation methods to a new partial class
-                    context.RegisterCodeFix(
-                        CodeAction.Create(
-                            title: "Extract calculation methods to partial class",
-                            createChangedDocument: c => ExtractCalculationMethodsAsync(context.Document, typeDeclaration, c),
-                            equivalenceKey: "ExtractCalculationMethods"
+                            // Use a title that clearly describes the required action
+                            title: $"Refactor '{typeDeclaration.Identifier.Text}' (SRP Violation)",
+                            // Create a solution that just adds a comment as a simple fix placeholder
+                            createChangedDocument: c => AddRefactoringComment(context.Document, typeDeclaration, c),
+                            equivalenceKey: "RefactorSRP"
                         ),
                         diagnostic
                     );
@@ -154,6 +145,26 @@ namespace SolidAnalyzersNuget.CodeFixes
 
             // Insert new partial class after the original
             var newRoot = root.ReplaceNode(typeDeclaration, new[] { newTypeDecl, partialClass });
+
+            return document.WithSyntaxRoot(newRoot);
+        }
+
+        private static async Task<Document> AddRefactoringComment(
+    Document document,
+    ClassDeclarationSyntax typeDeclaration,
+    CancellationToken cancellationToken)
+        {
+            // Create a new comment line
+            var commentText = SyntaxFactory.Comment("// TODO: Class violates SRP. Must refactor/extract interface.");
+
+            // Add the comment before the class declaration, preserving leading trivia
+            var leadingTrivia = typeDeclaration.GetLeadingTrivia();
+            var newTrivia = SyntaxFactory.TriviaList(leadingTrivia.Concat(new[] { commentText, SyntaxFactory.CarriageReturnLineFeed }));
+
+            var newDeclaration = typeDeclaration.WithLeadingTrivia(newTrivia);
+
+            var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+            var newRoot = root.ReplaceNode(typeDeclaration, newDeclaration);
 
             return document.WithSyntaxRoot(newRoot);
         }
