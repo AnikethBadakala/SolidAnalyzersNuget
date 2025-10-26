@@ -17,7 +17,7 @@ namespace SolidAnalyzersNuget
         public const string lspDiagnosticId = "LSP001";
         //
         public const string srpDiagnosticId = "SRP001";
-        private const int ComplexityThreshold = 15;
+        private const int ComplexityThreshold = 5;
 
         //the information of rule
         //desc of diagnosis
@@ -187,42 +187,51 @@ namespace SolidAnalyzersNuget
         //
         private static void AnalyzeTypeSymbol(SymbolAnalysisContext context)
         {
-            var namedTypeSymbol=(INamedTypeSymbol)context.Symbol;
+            var namedTypeSymbol = (INamedTypeSymbol)context.Symbol;
 
-            // Only analyze concrete classes
-            if (namedTypeSymbol.IsAbstract || namedTypeSymbol.IsStatic|| namedTypeSymbol.TypeKind!=TypeKind.Class)
-                return;
-            // Filter out compiler-generated types (e.g., anonymous types)
-            if (namedTypeSymbol.IsImplicitlyDeclared)
+            // Only analyze concrete, non-abstract classes
+            if (namedTypeSymbol.TypeKind != TypeKind.Class || namedTypeSymbol.IsAbstract || namedTypeSymbol.IsStatic)
                 return;
 
-            var memberCount=namedTypeSymbol.GetMembers()
-                .Count(x=>!x.IsImplicitlyDeclared && x.Kind!=SymbolKind.NamedType && x.Kind!= SymbolKind.Method && ((IMethodSymbol)x).MethodKind != MethodKind.Constructor);
+            // Use a simplified count: Include all explicitly declared members (Methods, Properties, Fields, Events, Constructors)
+            // The key is to filter out only the things we definitely don't want (implicit/nested types/destructors)
 
-            // Count methods and constructors separately
-            var methodCount = namedTypeSymbol.GetMembers().OfType<IMethodSymbol>()
-                .Count(method =>
-                    !method.IsImplicitlyDeclared &&
-                    method.MethodKind != MethodKind.Destructor); // Exclude destructors
+            var totalMemberCount = namedTypeSymbol.GetMembers()
+                .Count(member =>
+                {
+                    // 1. Exclude compiler-generated members (like backing fields for auto-properties)
+                    if (member.IsImplicitlyDeclared)
+                        return false;
 
-            // Total members is the count of fields/properties + count of methods/constructors
-            var totalMemberCount = memberCount + methodCount;
+                    // 2. Exclude nested types (classes, enums, etc., defined inside Parent)
+                    if (member.Kind == SymbolKind.NamedType)
+                        return false;
 
+                    // 3. Exclude destructors
+                    if (member.Kind == SymbolKind.Method && ((IMethodSymbol)member).MethodKind == MethodKind.Destructor)
+                        return false;
+
+                    // All other explicit members (methods, constructors, properties, fields, events) are counted
+                    return true;
+                });
+
+            const int ComplexityThreshold = 15; // Ensure this matches the constant at the top of the file
+
+            // The rule fires if the count is STRICTLY GREATER THAN the threshold (16 or more)
             if (totalMemberCount > ComplexityThreshold)
             {
                 // Report the diagnostic
                 var diagnostic = Diagnostic.Create(
                     srpRule1,
                     namedTypeSymbol.Locations.First(),
-                    namedTypeSymbol.Name, // {0} = Type Name
-                    totalMemberCount,     // {1} = Member Count
-                    ComplexityThreshold   // {2} = Threshold
+                    namedTypeSymbol.Name,          // {0} = Type Name (Parent)
+                    totalMemberCount,              // {1} = Member Count (e.g., 16)
+                    ComplexityThreshold            // {2} = Threshold (15)
                 );
 
                 context.ReportDiagnostic(diagnostic);
             }
         }
-
         //eg: throw new InvalidOperationException("Something went wrong");
         //Roslyn gives you a syntax node for this line — that’s throwStmt
         //throwStmt = the whole line
