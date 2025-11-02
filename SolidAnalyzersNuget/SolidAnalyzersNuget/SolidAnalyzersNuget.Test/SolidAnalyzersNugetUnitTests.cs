@@ -96,7 +96,7 @@ class GodClass
 }";
 
     // Update to match actual diagnostic location and member count
-    //test
+    //test //dev
     var expected = VerifyCS.Diagnostic(SolidAnalyzer.srpDiagnosticId)
         .WithSpan(9, 7, 9, 15) // Line and column for 'GodClass'
         .WithArguments("GodClass", 27, 5); // Type name, actual member count, threshold
